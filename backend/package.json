@@ -2,10 +2,10 @@
   "name": "chronic-care-ai-backend",
   "version": "1.0.0",
   "description": "AI-powered chronic disease management system",
-  "main": "server.js",
+  "main": "app.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start": "node app.js",
+    "dev": "nodemon app.js"
   },
   "dependencies": {
     "axios": "^1.5.0",
