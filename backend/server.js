@@ -4,8 +4,6 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { sequelize } = require('./models');
 const emailScheduler = require('./services/emailScheduler');
-const aiAnalysisService = require('./services/aiAnalysisService');
-
 require('dotenv').config();
 
 const app = express();
@@ -17,8 +15,8 @@ app.use(express.json());
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100
 });
 app.use(limiter);
 
@@ -30,14 +28,13 @@ app.use('/api/medications', require('./routes/medications'));
 app.use('/api/reminders', require('./routes/reminders'));
 app.use('/api/goals', require('./routes/goals'));
 app.use('/api/ai-analysis', require('./routes/aiAnalysis'));
-app.use('/api/ai-analysis', require('./routes/aiAnalysis'));
 
 // Health check
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', message: 'Chronic Care AI System is running' });
 });
 
-// Error handling middleware
+// Error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ message: 'Something went wrong!' });
@@ -45,20 +42,29 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-// Initialize database and start server
-sequelize.sync({ force: false })
-  .then(() => {
-    console.log('Database synchronized');
-    
-    // Start email scheduler
-    emailScheduler.start();
-    
-    app.listen(PORT, () => {
+// --- IMPORTANT FIX (Railway Safe) ---
+async function startServer() {
+  try {
+    await sequelize.authenticate();
+    console.log("Connected to database");
+
+    await sequelize.sync({ alter: false });
+    console.log("Database synchronized");
+
+    const server = app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
-  })
-  .catch(err => {
-    console.error('Database synchronization failed:', err);
-  });
+
+    // Start scheduler ONLY after server is running
+    emailScheduler.start();
+    console.log("Email scheduler started");
+
+  } catch (error) {
+    console.error("Server startup failed:", error);
+  }
+}
+
+startServer();
+// ------------------------------------
 
 module.exports = app;
