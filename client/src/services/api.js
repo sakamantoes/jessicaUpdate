@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jessicaupdate-production.up.railway.app/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -60,8 +60,12 @@ export const patientService = {
   updateProfile: (patientId, updates) => api.put(`/patients/profile/${patientId}`, updates),
 };
 
+
 export const healthService = {
-  addData: (data) => api.post('/health-data', data),
+  addData: (data) => {
+    console.log('Sending health data:', data);
+    return api.post('/health-data', data);
+  },
   getPatientData: (patientId, params) => api.get(`/health-data/patient/${patientId}`, { params }),
   getTrends: (patientId, params) => api.get(`/health-data/patient/${patientId}/trends`, { params }),
 };

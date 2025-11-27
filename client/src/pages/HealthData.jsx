@@ -11,26 +11,32 @@ const HealthData = () => {
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [selectedDataType, setSelectedDataType] = useState('blood_pressure');
 
   const [formData, setFormData] = useState({
     dataType: 'blood_pressure',
     value: '',
-    unit: '',
+    unit: HEALTH_UNITS['blood_pressure'],
     notes: ''
   });
 
   useEffect(() => {
-    loadHealthData();
+    if (patient?.id) {
+      loadHealthData();
+    }
   }, [patient?.id]);
 
   const loadHealthData = async () => {
     try {
       const response = await healthService.getPatientData(patient.id, { limit: 50 });
-      setHealthData(response.data.data);
+      if (response.data.success) {
+        setHealthData(response.data.data);
+      } else {
+        toast.error('Failed to load health data');
+      }
     } catch (error) {
-      toast.error('Failed to load health data');
       console.error('Error loading health data:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to load health data';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -48,13 +54,36 @@ const HealthData = () => {
       setFormData(prev => ({
         ...prev,
         dataType: value,
-        unit: HEALTH_UNITS[value] || ''
+        unit: HEALTH_UNITS[value] || '',
+        value: '' // Reset value when type changes
       }));
     }
   };
 
+  const validateForm = () => {
+    if (!formData.value.trim()) {
+      toast.error('Please enter a value');
+      return false;
+    }
+
+    if (formData.dataType === 'blood_pressure') {
+      const bpRegex = /^\d{2,3}\/\d{2,3}$/;
+      if (!bpRegex.test(formData.value)) {
+        toast.error('Please enter blood pressure in format: 120/80');
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -80,6 +109,8 @@ const HealthData = () => {
         recordedAt: new Date().toISOString()
       };
 
+      console.log('Submitting health data:', submissionData);
+
       const response = await healthService.addData(submissionData);
       
       if (response.data.success) {
@@ -91,11 +122,19 @@ const HealthData = () => {
           unit: HEALTH_UNITS['blood_pressure'],
           notes: ''
         });
-        loadHealthData(); // Reload data
+        await loadHealthData(); // Reload data
+      } else {
+        toast.error(response.data.message || 'Failed to add health data');
       }
     } catch (error) {
-      toast.error('Failed to add health data');
       console.error('Error adding health data:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to add health data. Please try again.';
+      toast.error(errorMessage);
+      
+      // Log detailed error for debugging
+      if (error.response) {
+        console.error('Server response:', error.response.data);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -213,6 +252,7 @@ const HealthData = () => {
                   type="button"
                   onClick={() => setShowAddForm(false)}
                   className="flex-1 btn-secondary"
+                  disabled={submitting}
                 >
                   Cancel
                 </button>
