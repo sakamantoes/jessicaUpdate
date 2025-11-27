@@ -27,7 +27,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false
     },
     value: {
-      type: DataTypes.FLOAT,
+      type: DataTypes.TEXT,  // ✅ CHANGED FROM FLOAT TO TEXT
       allowNull: false
     },
     unit: {

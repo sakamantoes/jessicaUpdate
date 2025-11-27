@@ -4,11 +4,12 @@ const { HealthData, Patient, Feedback } = require('../models');
 const aiAnalysisService = require('../services/aiAnalysisService');
 const emailService = require('../services/emailService');
 
-
 // Add health data
 router.post('/', async (req, res) => {
   try {
     const { patientId, dataType, value, unit, notes } = req.body;
+
+    console.log('Received health data request:', { patientId, dataType, value, unit, notes });
 
     // Validate required fields
     if (!patientId || !dataType || value === undefined || value === null) {
@@ -27,8 +28,9 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Process blood pressure data
+    // Process the value based on data type
     let processedValue = value;
+    
     if (dataType === 'blood_pressure' && typeof value === 'string') {
       try {
         const [systolic, diastolic] = value.split('/').map(v => parseInt(v.trim()));
@@ -44,6 +46,11 @@ router.post('/', async (req, res) => {
           success: false, 
           message: 'Invalid blood pressure format' 
         });
+      }
+    } else {
+      // For other data types, convert to number if possible
+      if (typeof value === 'string' && !isNaN(parseFloat(value))) {
+        processedValue = parseFloat(value);
       }
     }
 
@@ -133,7 +140,6 @@ router.post('/', async (req, res) => {
     });
   }
 });
-
 
 // Get patient health data
 router.get('/patient/:patientId', async (req, res) => {
