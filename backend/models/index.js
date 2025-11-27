@@ -1,4 +1,7 @@
 const { Sequelize } = require('sequelize');
+const dotenv = require('dotenv')
+
+dotenv.config()
 
 // Simple Sequelize configuration with better error handling
 let sequelize;
