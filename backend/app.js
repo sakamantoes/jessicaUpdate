@@ -30,7 +30,7 @@ app.use('/api/goals', require('./routes/goals'));
 app.use('/api/ai-analysis', require('./routes/aiAnalysis'));
 
 // Health check
-app.get('/health', (req, res) => {
+app.get('/', (req, res) => {
   res.status(200).json({ status: 'OK', message: 'Chronic Care AI System is running' });
 });
 
