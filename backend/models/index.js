@@ -1,27 +1,44 @@
 const { Sequelize } = require('sequelize');
 
-const sequelize = new Sequelize(
-  process.env.DB_NAME || 'chronic_care_ai',
-  process.env.DB_USER || 'root',
-  process.env.DB_PASS || '',
-  {
-    host: process.env.DB_HOST || 'localhost',
-    port: process.env.DB_PORT || 3306,
-    dialect: 'mysql',
-    logging: process.env.NODE_ENV === 'development' ? console.log : false,
-    pool: {
-      max: 5,
-      min: 0,
-      acquire: 30000,
-      idle: 10000
-    },
-    dialectOptions: process.env.NODE_ENV === 'production' ? {
-      ssl: {
-        rejectUnauthorized: false
+// Simple Sequelize configuration
+const sequelize = process.env.DATABASE_URL 
+  ? new Sequelize(process.env.DATABASE_URL, {
+      dialect: 'mysql',
+      logging: process.env.NODE_ENV === 'development' ? console.log : false,
+      pool: {
+        max: 5,
+        min: 0,
+        acquire: 30000,
+        idle: 10000
+      },
+      dialectOptions: {
+        ssl: {
+          rejectUnauthorized: false
+        }
       }
-    } : {}
-  }
-);
+    })
+  : new Sequelize(
+      process.env.DB_NAME || 'chronic_care_ai',
+      process.env.DB_USER || 'root',
+      process.env.DB_PASS || '',
+      {
+        host: process.env.DB_HOST || 'localhost',
+        port: process.env.DB_PORT || 3306,
+        dialect: 'mysql',
+        logging: process.env.NODE_ENV === 'development' ? console.log : false,
+        pool: {
+          max: 5,
+          min: 0,
+          acquire: 30000,
+          idle: 10000
+        },
+        dialectOptions: process.env.NODE_ENV === 'production' ? {
+          ssl: {
+            rejectUnauthorized: false
+          }
+        } : {}
+      }
+    );
 
 // Test database connection
 const testConnection = async () => {
