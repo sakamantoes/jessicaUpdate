@@ -1,28 +1,38 @@
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 const { Patient, Medication } = require('../models');
-const dotenv = require('dotenv')
+const dotenv = require('dotenv');
 
-dotenv.config()
+dotenv.config();
 
-// Initialize Resend
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Initialize Nodemailer transporter
+const createTransporter = () => {
+  return nodemailer.createTransport({
+    host: process.env.MAILTRAP_HOST || 'sandbox.smtp.mailtrap.io',
+    port: process.env.MAILTRAP_PORT || 2525,
+    auth: {
+      user: process.env.MAILTRAP_USER,
+      pass: process.env.MAILTRAP_PASS
+    }
+  });
+};
 
-// Test API Key on startup
+// Test Mailtrap connection on startup
 (async () => {
   try {
-    if (process.env.RESEND_API_KEY && process.env.RESEND_API_KEY !== 'your-resend-api-key-here') {
-      await resend.domains.list();
-      console.log("📧 Resend is connected and ready to send emails.");
+    if (process.env.MAILTRAP_USER && process.env.MAILTRAP_PASS) {
+      const transporter = createTransporter();
+      await transporter.verify();
+      console.log("📧 Mailtrap is connected and ready to send emails.");
     } else {
-      console.log("⚠️ Resend API key not configured - running in simulation mode");
+      console.log("⚠️ Mailtrap credentials not configured - running in simulation mode");
     }
   } catch (err) {
-    console.log("❌ Resend configuration error:", err.message);
+    console.log("❌ Mailtrap configuration error:", err.message);
   }
 })();
 
 // ===============================
-// Motivational messages + tips
+// Motivational messages + tips (keep the same)
 // ===============================
 
 const motivationalMessages = [
@@ -60,9 +70,13 @@ function getRandomMessage() {
 
 class EmailService {
   constructor() {
-    this.resend = resend;
-    this.isEnabled = !!process.env.RESEND_API_KEY && process.env.RESEND_API_KEY !== 'your-resend-api-key-here';
-    this.fromEmail = 'Chronic Care AI <onboarding@resend.dev>';
+    this.transporter = null;
+    this.isEnabled = !!process.env.MAILTRAP_USER && !!process.env.MAILTRAP_PASS;
+    this.fromEmail = 'Chronic Care AI <no-reply@chroniccare.ai>';
+    
+    if (this.isEnabled) {
+      this.transporter = createTransporter();
+    }
   }
 
   // =====================================
@@ -72,7 +86,7 @@ class EmailService {
   async sendMedicationReminder(patient, medication) {
     try {
       // Check if email service is enabled
-      if (!this.isEnabled || !this.resend) {
+      if (!this.isEnabled || !this.transporter) {
         console.log(`📧 [SIMULATED] Medication reminder would be sent to ${patient.email}`);
         console.log(`📧 [SIMULATED] Medication: ${medication.name}`);
         return { simulated: true, message: 'Email service not configured' };
@@ -126,15 +140,16 @@ class EmailService {
 </html>
 `;
 
-      const data = await this.resend.emails.send({
+      const mailOptions = {
         from: this.fromEmail,
         to: patient.email,
         subject: `💊 Medication Reminder: Time for ${medication.name}`,
         html: htmlContent
-      });
+      };
 
+      const data = await this.transporter.sendMail(mailOptions);
       console.log(`✅ Medication reminder sent to ${patient.email} for ${medication.name}`);
-      return data;
+      return { id: data.messageId, ...data };
 
     } catch (error) {
       console.error("❌ Error sending medication reminder:", error);
@@ -149,7 +164,7 @@ class EmailService {
   async sendMotivationalEmail(patient, context = {}) {
     try {
       // Check if email service is enabled
-      if (!this.isEnabled || !this.resend) {
+      if (!this.isEnabled || !this.transporter) {
         console.log(`📧 [SIMULATED] Motivational email would be sent to ${patient.email}`);
         console.log(`📧 [SIMULATED] Context:`, context);
         return { simulated: true, message: 'Email service not configured' };
@@ -202,15 +217,16 @@ class EmailService {
 </html>
 `;
 
-      const data = await this.resend.emails.send({
+      const mailOptions = {
         from: this.fromEmail,
         to: patient.email,
         subject: `🌟 Daily Health Motivation & Update`,
         html: htmlContent
-      });
+      };
 
+      const data = await this.transporter.sendMail(mailOptions);
       console.log(`✅ Motivational email sent to ${patient.email}`);
-      return data;
+      return { id: data.messageId, ...data };
 
     } catch (error) {
       console.error("❌ Error sending motivational email:", error);
@@ -225,7 +241,7 @@ class EmailService {
   async sendHealthAlert(patient, healthData, analysis) {
     try {
       // Check if email service is enabled
-      if (!this.isEnabled || !this.resend) {
+      if (!this.isEnabled || !this.transporter) {
         console.log(`📧 [SIMULATED] Health alert would be sent to ${patient.email}`);
         console.log(`📧 [SIMULATED] Alert: ${healthData.dataType} - ${healthData.riskLevel}`);
         return { simulated: true, message: 'Email service not configured' };
@@ -295,15 +311,16 @@ class EmailService {
 </html>
 `;
 
-      const data = await this.resend.emails.send({
+      const mailOptions = {
         from: this.fromEmail,
         to: patient.email,
         subject: `⚠️ Health Alert: ${healthData.dataType.replace('_', ' ').toUpperCase()} - ${healthData.riskLevel.toUpperCase()}`,
         html: htmlContent
-      });
+      };
 
+      const data = await this.transporter.sendMail(mailOptions);
       console.log(`✅ Health alert sent to ${patient.email}`);
-      return data;
+      return { id: data.messageId, ...data };
 
     } catch (error) {
       console.error("❌ Error sending health alert:", error);
@@ -318,7 +335,7 @@ class EmailService {
   async sendTestEmail(patient) {
     try {
       // Check if email service is enabled
-      if (!this.isEnabled || !this.resend) {
+      if (!this.isEnabled || !this.transporter) {
         console.log(`📧 [SIMULATED] Test email would be sent to ${patient.email}`);
         return { simulated: true, message: 'Email service not configured' };
       }
@@ -363,15 +380,16 @@ class EmailService {
 </html>
 `;
 
-      const data = await this.resend.emails.send({
+      const mailOptions = {
         from: this.fromEmail,
         to: patient.email,
         subject: '✅ Test Email - Chronic Care AI System',
         html: htmlContent
-      });
+      };
 
+      const data = await this.transporter.sendMail(mailOptions);
       console.log(`✅ Test email sent to ${patient.email}`);
-      return data;
+      return { id: data.messageId, ...data };
 
     } catch (error) {
       console.error("❌ Error sending test email:", error);
@@ -386,7 +404,7 @@ class EmailService {
   async sendProgressReport(patient, progressData) {
     try {
       // Check if email service is enabled
-      if (!this.isEnabled || !this.resend) {
+      if (!this.isEnabled || !this.transporter) {
         console.log(`📧 [SIMULATED] Progress report would be sent to ${patient.email}`);
         return { simulated: true, message: 'Email service not configured' };
       }
@@ -444,15 +462,16 @@ class EmailService {
 </html>
 `;
 
-      const data = await this.resend.emails.send({
+      const mailOptions = {
         from: this.fromEmail,
         to: patient.email,
         subject: '📈 Your Weekly Health Progress Report',
         html: htmlContent
-      });
+      };
 
+      const data = await this.transporter.sendMail(mailOptions);
       console.log(`✅ Progress report sent to ${patient.email}`);
-      return data;
+      return { id: data.messageId, ...data };
 
     } catch (error) {
       console.error("❌ Error sending progress report:", error);
@@ -484,6 +503,9 @@ class EmailService {
       for (const med of medications) {
         console.log(`📤 Test email → ${med.patient.email}`);
         await this.sendMedicationReminder(med.patient, med);
+        
+        // Add delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
 
     } catch (error) {

@@ -124,13 +124,20 @@ class EmailScheduler {
         recentAchievements: goals.filter(g => (g.progress || 0) >= 80).map(g => g.title).join(', ') || 'Making great progress!'
       };
 
-      // Send motivational email
-      await emailService.sendMotivationalEmail(patient, context);
+      // Send motivational email with enhanced error handling
+      const emailResult = await emailService.sendMotivationalEmail(patient, context);
+      
+      if (emailResult.error) {
+        console.log(`⚠️ Email service issue for ${patient.email}: ${emailResult.error}`);
+        // You could log this to a monitoring service
+      } else if (emailResult.simulated) {
+        console.log(`📧 [SIMULATED] Daily update would be sent to ${patient.email}`);
+      } else {
+        console.log(`✅ Daily update sent to ${patient.email}`);
+      }
 
-      // Check if we need to send any urgent alerts
+      // Check if we need to send any urgent alerts (these will handle their own error checking)
       await this.checkAndSendAlerts(patient);
-
-      console.log(`✅ Daily update sent to ${patient.email}`);
 
     } catch (error) {
       console.error(`❌ Error sending daily update to ${patient.email}:`, error.message);
@@ -153,8 +160,15 @@ class EmailScheduler {
 
       for (const data of criticalData) {
         const analysis = await aiAnalysisService.analyzeHealthData(patient.id, data);
-        await emailService.sendHealthAlert(patient, data, analysis);
-        console.log(`⚠️ Health alert sent to ${patient.email}`);
+        const alertResult = await emailService.sendHealthAlert(patient, data, analysis);
+        
+        if (alertResult.error) {
+          console.log(`⚠️ Health alert failed for ${patient.email}: ${alertResult.error}`);
+        } else if (alertResult.simulated) {
+          console.log(`📧 [SIMULATED] Health alert would be sent to ${patient.email}`);
+        } else {
+          console.log(`⚠️ Health alert sent to ${patient.email}`);
+        }
         
         // Add small delay between alerts
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -182,16 +196,27 @@ class EmailScheduler {
       console.log(`📨 Found ${patients.length} patients to email at ${currentTime}`);
 
       let emailCount = 0;
+      let successCount = 0;
+      let simulatedCount = 0;
+      let errorCount = 0;
+
       for (const patient of patients) {
-        await this.sendDailyUpdate(patient);
-        emailCount++;
+        try {
+          await this.sendDailyUpdate(patient);
+          emailCount++;
+          successCount++;
+        } catch (error) {
+          emailCount++;
+          errorCount++;
+          console.error(`❌ Failed to send daily update to ${patient.email}:`, error.message);
+        }
         
         // Add small delay between emails to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
 
       if (emailCount > 0) {
-        console.log(`✅ Sent ${emailCount} daily update emails`);
+        console.log(`✅ Sent ${successCount} daily update emails (${simulatedCount} simulated, ${errorCount} errors)`);
       }
 
       // Also check for medication reminders
@@ -224,6 +249,9 @@ class EmailScheduler {
       });
 
       let reminderCount = 0;
+      let successCount = 0;
+      let simulatedCount = 0;
+      let errorCount = 0;
 
       for (const medication of medications) {
         if (medication.schedule && medication.schedule.times) {
@@ -235,18 +263,35 @@ class EmailScheduler {
           });
 
           if (scheduleTimes.includes(currentTime)) {
-            await emailService.sendMedicationReminder(medication.patient, medication);
-            reminderCount++;
-            console.log(`💊 Medication reminder sent to ${medication.patient.email} for ${medication.name}`);
-            
-            // Add small delay between reminders
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            try {
+              const reminderResult = await emailService.sendMedicationReminder(medication.patient, medication);
+              
+              if (reminderResult.error) {
+                console.log(`⚠️ Medication reminder failed for ${medication.patient.email}: ${reminderResult.error}`);
+                errorCount++;
+              } else if (reminderResult.simulated) {
+                console.log(`📧 [SIMULATED] Medication reminder would be sent to ${medication.patient.email} for ${medication.name}`);
+                simulatedCount++;
+              } else {
+                console.log(`💊 Medication reminder sent to ${medication.patient.email} for ${medication.name}`);
+                successCount++;
+              }
+              
+              reminderCount++;
+              
+              // Add small delay between reminders
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            } catch (error) {
+              reminderCount++;
+              errorCount++;
+              console.error(`❌ Error sending medication reminder to ${medication.patient.email}:`, error.message);
+            }
           }
         }
       }
 
       if (reminderCount > 0) {
-        console.log(`✅ Sent ${reminderCount} medication reminders`);
+        console.log(`✅ Processed ${reminderCount} medication reminders (${successCount} sent, ${simulatedCount} simulated, ${errorCount} errors)`);
       } else {
         console.log(`💊 No medication reminders scheduled for ${currentTime}`);
       }
@@ -262,9 +307,18 @@ class EmailScheduler {
       const medication = await Medication.findByPk(medicationId);
 
       if (patient && medication) {
-        await emailService.sendMedicationReminder(patient, medication);
-        console.log(`💊 Immediate medication reminder sent to ${patient.email}`);
-        return true;
+        const result = await emailService.sendMedicationReminder(patient, medication);
+        
+        if (result.error) {
+          console.log(`⚠️ Immediate medication reminder failed for ${patient.email}: ${result.error}`);
+          return false;
+        } else if (result.simulated) {
+          console.log(`📧 [SIMULATED] Immediate medication reminder would be sent to ${patient.email}`);
+          return true;
+        } else {
+          console.log(`💊 Immediate medication reminder sent to ${patient.email}`);
+          return true;
+        }
       }
       return false;
     } catch (error) {
@@ -280,9 +334,18 @@ class EmailScheduler {
         throw new Error('Patient not found');
       }
 
-      await emailService.sendTestEmail(patient);
-      console.log(`✅ Test email sent to ${patient.email}`);
-      return true;
+      const result = await emailService.sendTestEmail(patient);
+      
+      if (result.error) {
+        console.log(`⚠️ Test email failed for ${patient.email}: ${result.error}`);
+        return false;
+      } else if (result.simulated) {
+        console.log(`📧 [SIMULATED] Test email would be sent to ${patient.email}`);
+        return true;
+      } else {
+        console.log(`✅ Test email sent to ${patient.email}`);
+        return true;
+      }
     } catch (error) {
       console.error('❌ Error sending test email:', error);
       return false;
@@ -342,6 +405,36 @@ class EmailScheduler {
     } catch (error) {
       console.error('❌ Error getting upcoming schedule:', error);
       return { patients: [], medications: [] };
+    }
+  }
+
+  // Get email statistics
+  async getEmailStats() {
+    try {
+      const patients = await Patient.count({
+        where: { 
+          preferredEmailTime: { [require('sequelize').Op.ne]: null }
+        }
+      });
+
+      const medications = await Medication.count({
+        where: { isActive: true }
+      });
+
+      return {
+        totalPatients: patients,
+        totalActiveMedications: medications,
+        schedulerStatus: this.getStatus(),
+        emailServiceStatus: emailService.isEnabled ? 'Active' : 'Simulation Mode'
+      };
+    } catch (error) {
+      console.error('❌ Error getting email stats:', error);
+      return {
+        totalPatients: 0,
+        totalActiveMedications: 0,
+        schedulerStatus: this.getStatus(),
+        emailServiceStatus: 'Error'
+      };
     }
   }
 }
