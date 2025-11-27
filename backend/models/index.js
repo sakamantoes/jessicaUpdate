@@ -3,33 +3,33 @@ require('dotenv').config();
 
 const sequelize = new Sequelize(
   process.env.DATABASE_URL,   // empty password support
+  
   {
-    host: process.env.DB_HOST,
+    // host: process.env.DB_HOST,
     dialect: process.env.DB_DIALECT || 'mysql',
-    logging: process.env.NODE_ENV === 'development' ? console.log : false,
+    // logging: process.env.NODE_ENV === 'development' ? console.log : false,
 
-    dialectOptions: {
-      ssl: process.env.NODE_ENV === 'production'
-        ? { rejectUnauthorized: false }
-        : undefined,
-    },
+    // dialectOptions: {
+    //   ssl: process.env.NODE_ENV === 'production'
+    //     ? { rejectUnauthorized: false }
+    //     : undefined,
+    // },
 
-    pool: {
-      max: 5,
-      min: 0,
-      acquire: 30000,
-      idle: 10000
-    }
+  //   pool: {
+  //     max: 5,
+  //     min: 0,
+  //     acquire: 30000,
+  //     idle: 10000
+  //   }
   }
 );
-
 // Test DB connection
 async function testConnection() {
   try {
     await sequelize.authenticate();
     console.log('✅ Connected to MySQL successfully!');
   } catch (error) {
-    console.error('❌ Unable to connect:', error.message);
+    console.error('❌ Unable to connect:', error);
     process.exit(1);
   }
 }
