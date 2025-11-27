@@ -77,68 +77,64 @@ const HealthData = () => {
     return true;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+ const handleSubmit = async (e) => {
+  e.preventDefault();
+  
+  if (!validateForm()) {
+    return;
+  }
+
+  setSubmitting(true);
+
+  try {
+    let processedValue = formData.value;
+
+    // Process blood pressure value - KEEP AS STRING FORMAT
+    if (formData.dataType === 'blood_pressure') {
+      const [systolic, diastolic] = formData.value.split('/').map(v => parseInt(v.trim()));
+      if (isNaN(systolic) || isNaN(diastolic)) {
+        toast.error('Please enter blood pressure in format: 120/80');
+        setSubmitting(false);
+        return;
+      }
+      // Keep as simple string format "140/90"
+      processedValue = `${systolic}/${diastolic}`;
+    }
+
+    const submissionData = {
+      patientId: patient.id,
+      dataType: formData.dataType,
+      value: processedValue, // This will be "140/90" for blood pressure
+      unit: formData.unit,
+      notes: formData.notes,
+      recordedAt: new Date().toISOString()
+    };
+
+    console.log('Submitting health data:', submissionData);
+
+    const response = await healthService.addData(submissionData);
     
-    if (!validateForm()) {
-      return;
+    if (response.data.success) {
+      toast.success('Health data added successfully!');
+      setShowAddForm(false);
+      setFormData({
+        dataType: 'blood_pressure',
+        value: '',
+        unit: HEALTH_UNITS['blood_pressure'],
+        notes: ''
+      });
+      await loadHealthData();
+    } else {
+      toast.error(response.data.message || 'Failed to add health data');
     }
-
-    setSubmitting(true);
-
-    try {
-      let processedValue = formData.value;
-
-      // Process blood pressure value
-      if (formData.dataType === 'blood_pressure') {
-        const [systolic, diastolic] = formData.value.split('/').map(v => parseInt(v.trim()));
-        if (isNaN(systolic) || isNaN(diastolic)) {
-          toast.error('Please enter blood pressure in format: 120/80');
-          setSubmitting(false);
-          return;
-        }
-        processedValue = JSON.stringify({ systolic, diastolic });
-      }
-
-      const submissionData = {
-        patientId: patient.id,
-        dataType: formData.dataType,
-        value: processedValue,
-        unit: formData.unit,
-        notes: formData.notes,
-        recordedAt: new Date().toISOString()
-      };
-
-      console.log('Submitting health data:', submissionData);
-
-      const response = await healthService.addData(submissionData);
-      
-      if (response.data.success) {
-        toast.success('Health data added successfully!');
-        setShowAddForm(false);
-        setFormData({
-          dataType: 'blood_pressure',
-          value: '',
-          unit: HEALTH_UNITS['blood_pressure'],
-          notes: ''
-        });
-        await loadHealthData(); // Reload data
-      } else {
-        toast.error(response.data.message || 'Failed to add health data');
-      }
-    } catch (error) {
-      console.error('Error adding health data:', error);
-      const errorMessage = error.response?.data?.message || 'Failed to add health data. Please try again.';
-      toast.error(errorMessage);
-      
-      // Log detailed error for debugging
-      if (error.response) {
-        console.error('Server response:', error.response.data);
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  } catch (error) {
+    console.error('Error adding health data:', error);
+    const errorMessage = error.response?.data?.message || 'Failed to add health data. Please try again.';
+    toast.error(errorMessage);
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const getRiskColor = (riskLevel) => {
     const colors = {
