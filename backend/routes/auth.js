@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Patient } = require('../models');
 const authMiddleware = require('../middleware/auth');
+const emailScheduler = require('../services/emailScheduler');
 
 // Patient registration
 router.post('/register', async (req, res) => {
@@ -280,7 +281,9 @@ router.put('/profile', authMiddleware, async (req, res) => {
       chronicConditions,
       preferredEmailTime,
       phoneNumber,
-      emergencyContact
+      emergencyContact,
+      emailNotifications,
+      emailPreferences
     } = req.body;
 
     const patient = await Patient.findByPk(req.patientId);
@@ -301,6 +304,8 @@ router.put('/profile', authMiddleware, async (req, res) => {
     if (preferredEmailTime) updateData.preferredEmailTime = preferredEmailTime;
     if (phoneNumber) updateData.phoneNumber = phoneNumber;
     if (emergencyContact) updateData.emergencyContact = emergencyContact;
+    if (emailNotifications !== undefined) updateData.emailNotifications = emailNotifications;
+    if (emailPreferences) updateData.emailPreferences = emailPreferences;
 
     await patient.update(updateData);
 
@@ -316,6 +321,8 @@ router.put('/profile', authMiddleware, async (req, res) => {
       preferredEmailTime: patient.preferredEmailTime,
       phoneNumber: patient.phoneNumber,
       emergencyContact: patient.emergencyContact,
+      emailNotifications: patient.emailNotifications,
+      emailPreferences: patient.emailPreferences,
       medicationAdherence: patient.medicationAdherence,
       motivationLevel: patient.motivationLevel,
       lastAssessment: patient.lastAssessment,
@@ -512,6 +519,114 @@ router.post('/reset-password', async (req, res) => {
     res.status(500).json({ 
       success: false, 
       message: 'Failed to reset password' 
+    });
+  }
+});
+
+// EMAIL-RELATED ENDPOINTS
+
+// Send test email
+router.post('/test-email', authMiddleware, async (req, res) => {
+  try {
+    const emailResult = await emailScheduler.sendTestEmail(req.patientId);
+    
+    if (emailResult.error) {
+      return res.status(500).json({ 
+        success: false, 
+        message: emailResult.error 
+      });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Test email sent successfully',
+      data: emailResult
+    });
+  } catch (error) {
+    console.error('Error sending test email:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || 'Failed to send test email'
+    });
+  }
+});
+
+// Reload scheduler
+router.post('/reload-scheduler', authMiddleware, async (req, res) => {
+  try {
+    await emailScheduler.loadPatientSchedules();
+    res.json({ 
+      success: true, 
+      message: 'Scheduler reloaded successfully' 
+    });
+  } catch (error) {
+    console.error('Error reloading scheduler:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || 'Failed to reload scheduler'
+    });
+  }
+});
+
+// Get scheduler status
+router.get('/scheduler-status', authMiddleware, async (req, res) => {
+  try {
+    const status = emailScheduler.getStatus();
+    const upcoming = emailScheduler.getUpcomingSchedule();
+    const stats = emailScheduler.getEmailStats();
+    
+    res.json({
+      success: true,
+      data: { 
+        status, 
+        upcoming, 
+        stats,
+        patientCount: await Patient.count()
+      }
+    });
+  } catch (error) {
+    console.error('Error getting scheduler status:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || 'Failed to get scheduler status'
+    });
+  }
+});
+
+// Send immediate medication reminder
+router.post('/send-reminder/:medicationId', authMiddleware, async (req, res) => {
+  try {
+    const { medicationId } = req.params;
+    
+    if (!medicationId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Medication ID is required' 
+      });
+    }
+
+    const result = await emailScheduler.sendImmediateMedicationReminder(
+      req.patientId, 
+      medicationId
+    );
+    
+    if (result.error) {
+      return res.status(500).json({ 
+        success: false, 
+        message: result.error 
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: 'Medication reminder sent successfully',
+      data: result
+    });
+  } catch (error) {
+    console.error('Error sending immediate reminder:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || 'Failed to send medication reminder'
     });
   }
 });

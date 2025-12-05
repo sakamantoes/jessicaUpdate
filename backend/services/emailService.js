@@ -1,33 +1,19 @@
-const nodemailer = require('nodemailer');
+const axios = require('axios');
 const { Patient, Medication } = require('../models');
 const dotenv = require('dotenv');
 
 dotenv.config();
 
-// Initialize Nodemailer transporter
-const createTransporter = () => {
-  return nodemailer.createTransport({
-    host: process.env.MAILTRAP_HOST || 'sandbox.smtp.mailtrap.io',
-    port: process.env.MAILTRAP_PORT || 2525,
-    auth: {
-      user: process.env.MAILTRAP_USER,
-      pass: process.env.MAILTRAP_PASS
-    }
-  });
-};
-
-// Test Mailtrap connection on startup
+// Test Brevo connection on startup
 (async () => {
   try {
-    if (process.env.MAILTRAP_USER && process.env.MAILTRAP_PASS) {
-      const transporter = createTransporter();
-      await transporter.verify();
-      console.log("📧 Mailtrap is connected and ready to send emails.");
+    if (process.env.BREVO_API_KEY) {
+      console.log("📧 Brevo API key is configured and ready to send emails.");
     } else {
-      console.log("⚠️ Mailtrap credentials not configured - running in simulation mode");
+      console.log("⚠️ Brevo API key not configured - running in simulation mode");
     }
   } catch (err) {
-    console.log("❌ Mailtrap configuration error:", err.message);
+    console.log("❌ Brevo configuration error:", err.message);
   }
 })();
 
@@ -70,12 +56,33 @@ function getRandomMessage() {
 
 class EmailService {
   constructor() {
-    this.transporter = null;
-    this.isEnabled = !!process.env.MAILTRAP_USER && !!process.env.MAILTRAP_PASS;
-    this.fromEmail = 'Chronic Care AI <no-reply@chroniccare.ai>';
-    
-    if (this.isEnabled) {
-      this.transporter = createTransporter();
+    this.isEnabled = !!process.env.BREVO_API_KEY;
+    this.fromEmail = process.env.BREVO_FROM_EMAIL || 'no-reply@chroniccare.ai';
+    this.fromName = process.env.BREVO_FROM_NAME || 'Chronic Care AI';
+    this.brevoApiUrl = 'https://api.brevo.com/v3/smtp/email';
+  }
+
+  // Helper method to send email via Brevo API
+  async sendViaBrevo(mailOptions) {
+    try {
+      if (!this.isEnabled) {
+        console.log(`📧 [SIMULATED] Email would be sent to ${mailOptions.to[0].email}`);
+        return { simulated: true, message: 'Brevo API not configured' };
+      }
+
+      const response = await axios.post(this.brevoApiUrl, mailOptions, {
+        headers: {
+          'api-key': process.env.BREVO_API_KEY,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+
+      console.log(`✅ Email sent successfully: ${response.data.messageId}`);
+      return { id: response.data.messageId, ...response.data };
+    } catch (error) {
+      console.error("❌ Brevo API error:", error.response?.data || error.message);
+      return { error: error.response?.data || error.message, simulated: true };
     }
   }
 
@@ -85,13 +92,6 @@ class EmailService {
 
   async sendMedicationReminder(patient, medication) {
     try {
-      // Check if email service is enabled
-      if (!this.isEnabled || !this.transporter) {
-        console.log(`📧 [SIMULATED] Medication reminder would be sent to ${patient.email}`);
-        console.log(`📧 [SIMULATED] Medication: ${medication.name}`);
-        return { simulated: true, message: 'Email service not configured' };
-      }
-
       const message = getRandomMessage();
 
       const htmlContent = `
@@ -141,15 +141,21 @@ class EmailService {
 `;
 
       const mailOptions = {
-        from: this.fromEmail,
-        to: patient.email,
+        sender: {
+          name: this.fromName,
+          email: this.fromEmail
+        },
+        to: [{
+          email: patient.email,
+          name: `${patient.firstName} ${patient.lastName}`
+        }],
         subject: `💊 Medication Reminder: Time for ${medication.name}`,
-        html: htmlContent
+        htmlContent: htmlContent
       };
 
-      const data = await this.transporter.sendMail(mailOptions);
+      const data = await this.sendViaBrevo(mailOptions);
       console.log(`✅ Medication reminder sent to ${patient.email} for ${medication.name}`);
-      return { id: data.messageId, ...data };
+      return data;
 
     } catch (error) {
       console.error("❌ Error sending medication reminder:", error);
@@ -163,13 +169,6 @@ class EmailService {
 
   async sendMotivationalEmail(patient, context = {}) {
     try {
-      // Check if email service is enabled
-      if (!this.isEnabled || !this.transporter) {
-        console.log(`📧 [SIMULATED] Motivational email would be sent to ${patient.email}`);
-        console.log(`📧 [SIMULATED] Context:`, context);
-        return { simulated: true, message: 'Email service not configured' };
-      }
-
       const message = getRandomMessage();
 
       const htmlContent = `
@@ -218,15 +217,21 @@ class EmailService {
 `;
 
       const mailOptions = {
-        from: this.fromEmail,
-        to: patient.email,
+        sender: {
+          name: this.fromName,
+          email: this.fromEmail
+        },
+        to: [{
+          email: patient.email,
+          name: `${patient.firstName} ${patient.lastName}`
+        }],
         subject: `🌟 Daily Health Motivation & Update`,
-        html: htmlContent
+        htmlContent: htmlContent
       };
 
-      const data = await this.transporter.sendMail(mailOptions);
+      const data = await this.sendViaBrevo(mailOptions);
       console.log(`✅ Motivational email sent to ${patient.email}`);
-      return { id: data.messageId, ...data };
+      return data;
 
     } catch (error) {
       console.error("❌ Error sending motivational email:", error);
@@ -240,13 +245,6 @@ class EmailService {
 
   async sendHealthAlert(patient, healthData, analysis) {
     try {
-      // Check if email service is enabled
-      if (!this.isEnabled || !this.transporter) {
-        console.log(`📧 [SIMULATED] Health alert would be sent to ${patient.email}`);
-        console.log(`📧 [SIMULATED] Alert: ${healthData.dataType} - ${healthData.riskLevel}`);
-        return { simulated: true, message: 'Email service not configured' };
-      }
-
       const riskLevelColors = {
         high: '#ff6b6b',
         critical: '#ff4757',
@@ -312,15 +310,21 @@ class EmailService {
 `;
 
       const mailOptions = {
-        from: this.fromEmail,
-        to: patient.email,
+        sender: {
+          name: this.fromName,
+          email: this.fromEmail
+        },
+        to: [{
+          email: patient.email,
+          name: `${patient.firstName} ${patient.lastName}`
+        }],
         subject: `⚠️ Health Alert: ${healthData.dataType.replace('_', ' ').toUpperCase()} - ${healthData.riskLevel.toUpperCase()}`,
-        html: htmlContent
+        htmlContent: htmlContent
       };
 
-      const data = await this.transporter.sendMail(mailOptions);
+      const data = await this.sendViaBrevo(mailOptions);
       console.log(`✅ Health alert sent to ${patient.email}`);
-      return { id: data.messageId, ...data };
+      return data;
 
     } catch (error) {
       console.error("❌ Error sending health alert:", error);
@@ -334,12 +338,6 @@ class EmailService {
 
   async sendTestEmail(patient) {
     try {
-      // Check if email service is enabled
-      if (!this.isEnabled || !this.transporter) {
-        console.log(`📧 [SIMULATED] Test email would be sent to ${patient.email}`);
-        return { simulated: true, message: 'Email service not configured' };
-      }
-
       const htmlContent = `
 <!DOCTYPE html>
 <html>
@@ -381,15 +379,21 @@ class EmailService {
 `;
 
       const mailOptions = {
-        from: this.fromEmail,
-        to: patient.email,
+        sender: {
+          name: this.fromName,
+          email: this.fromEmail
+        },
+        to: [{
+          email: patient.email,
+          name: `${patient.firstName} ${patient.lastName}`
+        }],
         subject: '✅ Test Email - Chronic Care AI System',
-        html: htmlContent
+        htmlContent: htmlContent
       };
 
-      const data = await this.transporter.sendMail(mailOptions);
+      const data = await this.sendViaBrevo(mailOptions);
       console.log(`✅ Test email sent to ${patient.email}`);
-      return { id: data.messageId, ...data };
+      return data;
 
     } catch (error) {
       console.error("❌ Error sending test email:", error);
@@ -403,12 +407,6 @@ class EmailService {
 
   async sendProgressReport(patient, progressData) {
     try {
-      // Check if email service is enabled
-      if (!this.isEnabled || !this.transporter) {
-        console.log(`📧 [SIMULATED] Progress report would be sent to ${patient.email}`);
-        return { simulated: true, message: 'Email service not configured' };
-      }
-
       const htmlContent = `
 <!DOCTYPE html>
 <html>
@@ -463,15 +461,21 @@ class EmailService {
 `;
 
       const mailOptions = {
-        from: this.fromEmail,
-        to: patient.email,
+        sender: {
+          name: this.fromName,
+          email: this.fromEmail
+        },
+        to: [{
+          email: patient.email,
+          name: `${patient.firstName} ${patient.lastName}`
+        }],
         subject: '📈 Your Weekly Health Progress Report',
-        html: htmlContent
+        htmlContent: htmlContent
       };
 
-      const data = await this.transporter.sendMail(mailOptions);
+      const data = await this.sendViaBrevo(mailOptions);
       console.log(`✅ Progress report sent to ${patient.email}`);
-      return { id: data.messageId, ...data };
+      return data;
 
     } catch (error) {
       console.error("❌ Error sending progress report:", error);

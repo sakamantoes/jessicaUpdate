@@ -28,6 +28,7 @@ app.use('/api/medications', require('./routes/medications'));
 app.use('/api/reminders', require('./routes/reminders'));
 app.use('/api/goals', require('./routes/goals'));
 app.use('/api/ai-analysis', require('./routes/aiAnalysis'));
+app.use('/api/email',require('./routes/email'));
 
 // Health check
 app.get('/', (req, res) => {

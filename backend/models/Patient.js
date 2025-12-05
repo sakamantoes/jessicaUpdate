@@ -57,6 +57,20 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.ENUM('low', 'medium', 'high'),
       defaultValue: 'medium'
     },
+    // Add to your Patient model
+emailPreferences: {
+  type: DataTypes.JSON,
+  defaultValue: {
+    motivational: true,
+    medication: true,
+    alerts: true,
+    reports: true
+  }
+},
+emailNotifications: {
+  type: DataTypes.BOOLEAN,
+  defaultValue: true
+},
     lastAssessment: {
       type: DataTypes.DATE
     }

@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jessicaupdate-production.up.railway.app/api';
+// Use environment variable with fallback
+const API_BASE_URL = import.meta.env.VITE_API_URL || 
+                     import.meta.env.REACT_APP_API_URL || 
+                     'https://jessicaupdate-production.up.railway.app/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -52,6 +55,8 @@ export const authService = {
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
   resetPassword: (token, newPassword) => 
     api.post('/auth/reset-password', { token, newPassword }),
+  sendTestEmail: () => api.post('/auth/test-email'),
+  reloadScheduler: () => api.post('/auth/reload-scheduler'),
 };
 
 export const patientService = {
@@ -59,7 +64,6 @@ export const patientService = {
   getDashboard: (patientId) => api.get(`/patients/${patientId}/dashboard`),
   updateProfile: (patientId, updates) => api.put(`/patients/profile/${patientId}`, updates),
 };
-
 
 export const healthService = {
   addData: (data) => {
@@ -106,6 +110,17 @@ export const aiAnalysisService = {
     api.get(`/ai-analysis/patient/${patientId}/progress-report?period=${period}`),
   analyzeHealthData: (patientId, healthData) => 
     api.post('/ai-analysis/analyze-health-data', { patientId, healthData }),
+};
+
+export const emailService = {
+  sendTestEmail: (patientId) => api.post(`/email/test/${patientId}`),
+  getSchedulerStatus: () => api.get('/email/scheduler/status'),
+  reloadScheduler: () => api.post('/email/scheduler/reload'),
+  getEmailPreferences: (patientId) => api.get(`/email/preferences/${patientId}`),
+  updateEmailPreferences: (patientId, preferences) => 
+    api.put(`/email/preferences/${patientId}`, preferences),
+  sendImmediateReminder: (patientId, medicationId) => 
+    api.post(`/email/reminder/${patientId}/${medicationId}`),
 };
 
 export default api;
