@@ -264,7 +264,7 @@ const Register = () => {
 
               {/* Emergency Contact */}
               <div className="space-y-3">
-                <h4 className="text-sm font-medium text-gray-700">Emergency Contact</h4>
+                <h4 className="text-sm font-medium text-gray-700">Emergency Contact (your relation)</h4>
                 
                 <input
                   name="emergencyContact.name"
